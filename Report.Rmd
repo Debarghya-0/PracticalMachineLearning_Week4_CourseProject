@@ -2,7 +2,9 @@
 title: "Practical Machine Learning Course Project Report"
 author: "Rafael Sulino"
 date: "11/08/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ## Introduction  
@@ -19,7 +21,8 @@ library(rpart.plot)
 library(randomForest)
 library(corrplot)
 ```
-### Download the Data
+### Downloading Data
+
 ```{r, cache = TRUE}
 trainUrl <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
 testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
@@ -34,28 +37,43 @@ if (!file.exists(trainFile)) {
 if (!file.exists(testFile)) {
   download.file(testUrl, destfile=testFile, method="libcurl")
 }
-```  
-### Read the Data
-After downloading the data from the data source, we can read the two csv files into two data frames.  
+``` 
+
+### Reading Data
+
+Read the two csv files into two data frames.
+
 ```{r, cache = TRUE}
 trainRaw <- read.csv("./data/pml-training.csv")
 testRaw <- read.csv("./data/pml-testing.csv")
 dim(trainRaw)
 dim(testRaw)
 ```
-The training data set contains 19622 observations and 160 variables, while the testing data set contains 20 observations and 160 variables. The "classe" variable in the training set is the outcome to predict. 
+Training dataset:
 
-### Clean the data
-In this step, we will clean the data and get rid of observations with missing values as well as some meaningless variables.
+- 19622 observations
+- 160 variables
+
+Testing dataset:
+
+- 20 observations
+- 160 variables
+
+### Cleaning data
+
+
 ```{r, cache = TRUE}
 sum(complete.cases(trainRaw))
 ```
-First, we remove columns that contain NA missing values.
+Removing missing values.
+
 ```{r, cache = TRUE}
 trainRaw <- trainRaw[, colSums(is.na(trainRaw)) == 0] 
 testRaw <- testRaw[, colSums(is.na(testRaw)) == 0] 
 ```  
-Next, we get rid of some columns that do not contribute much to the accelerometer measurements.
+
+Removing some columns (not used).
+
 ```{r, cache = TRUE}
 classe <- trainRaw$classe
 trainRemove <- grepl("^X|timestamp|window", names(trainRaw))
@@ -66,52 +84,78 @@ testRemove <- grepl("^X|timestamp|window", names(testRaw))
 testRaw <- testRaw[, !testRemove]
 testCleaned <- testRaw[, sapply(testRaw, is.numeric)]
 ```
-Now, the cleaned training data set contains 19622 observations and 53 variables, while the testing data set contains 20 observations and 53 variables. The "classe" variable is still in the cleaned training set.
 
-### Slice the data
-Then, we can split the cleaned training set into a pure training data set (70%) and a validation data set (30%). We will use the validation data set to conduct cross validation in future steps.  
+Training dataset (cleaned):
+
+- 19622 observations
+- 53 variables
+
+Testing dataset (cleaned):
+
+- 20 observations
+- 54 variables
+
+### Spliting Data
+
+- Training = 70%
+- Validation = 30%
+
+
 ```{r, cache = TRUE}
-set.seed(22519) # For reproducibile purpose
+set.seed(1234)
 inTrain <- createDataPartition(trainCleaned$classe, p=0.70, list=F)
 trainData <- trainCleaned[inTrain, ]
 testData <- trainCleaned[-inTrain, ]
 ```
 
-## Data Modeling
-We fit a predictive model for activity recognition using **Random Forest** algorithm because it automatically selects important variables and is robust to correlated covariates & outliers in general. We will use **5-fold cross validation** when applying the algorithm.  
+## Modeling Data
+
+Random Forest, 5-fold cross validation.
+
+
 ```{r, cache = T}
 controlRf <- trainControl(method="cv", 5)
 modelRf <- train(classe ~ ., data=trainData, method="rf", trControl=controlRf, ntree=250)
 modelRf
 ```
-Then, we estimate the performance of the model on the validation data set.  
+Model performance.
+
+```{r, cache = TRUE}
+testdData <- testData[complete.cases(testData),]
+```
+
 ```{r, cache = TRUE}
 predictRf <- predict(modelRf, testData)
-confusionMatrix(testData$classe, predictRf)
+confusionMatrix(predictRf, as.factor(testData$classe))
 ```
 
 ```{r, cache = TRUE}
-accuracy <- postResample(predictRf, testData$classe)
+accuracy <- postResample(predictRf, as.factor(testData$classe))
 accuracy
-oose <- 1 - as.numeric(confusionMatrix(testData$classe, predictRf)$overall[1])
+oose <- 1 - as.numeric(confusionMatrix(as.factor(testData$classe), predictRf)$overall[1])
 oose
 ```
-So, the estimated accuracy of the model is 99.42% and the estimated out-of-sample error is 0.58%.
 
-## Predicting for Test Data Set
-Now, we apply the model to the original testing data set downloaded from the data source. We remove the `problem_id` column first.  
+## Predicting for Test dataset
+
+Apply the model to the original testing dataset.
+
 ```{r, cache = TRUE}
 result <- predict(modelRf, testCleaned[, -length(names(testCleaned))])
 result
 ```  
 
 ## Appendix: Figures
-1. Correlation Matrix Visualization  
+
+1. Correlation Matrix
+
 ```{r, cache = TRUE}
 corrPlot <- cor(trainData[, -length(names(trainData))])
 corrplot(corrPlot, method="color")
 ```
-2. Decision Tree Visualization
+
+2. Decision Tree
+
 ```{r, cache = TRUE}
 treeModel <- rpart(classe ~ ., data=trainData, method="class")
 prp(treeModel) # fast plot
