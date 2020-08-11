@@ -1,4 +1,4 @@
-# PracticalMachineLearning_Week4_CourseProject
+# Practical Machine Learning Course Project
 
 ## Instructions
 
